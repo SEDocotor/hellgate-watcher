@@ -9,3 +9,8 @@ dependencies = [
     "pillow",
     "ipynb>=0.5.1",
 ]
+
+[dependency-groups]
+dev = [
+    "jupyter>=1.1.1",
+]

@@ -112,7 +112,7 @@ def get_battle_data(battle):
     TeamA.extend(killer_group_members)
     TeamB.append(victim)
 
-    
+    clean_up=[]
 
     for kill_event in battle[1:]:
         victim = {
@@ -121,19 +121,65 @@ def get_battle_data(battle):
             "equipment": kill_event["Victim"]['Equipment']
         }
 
-        if victim not in TeamA:
+        killer = {
+            "id": kill_event["Killer"]['Id'], 
+            "name": kill_event["Killer"]['Name'], 
+            "equipment": kill_event["Killer"]['Equipment']
+        }
+
+        killer_group_members = [{
+            "id":player['Id'], 
+            "name": player['Name'], 
+            "equipment": player['Equipment']
+        }for player in kill_event["Participants"]]
+
+        if victim not in TeamA and killer not in TeamA:
+            clean_up += kill_event 
+
+        if victim not in TeamA or killer in TeamA:
             TeamB.append(victim)
+            TeamA.append(killer)
+            TeamA.extend(killer_group_members)
 
         else:
-            TeamB=[]
-            killer_group_members = [{
-                "id":player['Id'], 
-                "name": player['Name'], 
-                "equipment": player['Equipment']
-            }for player in kill_event["Participants"]]
+            TeamA.append(victim)
             TeamB.append(killer)
             TeamB.extend(killer_group_members)
         
+    if len(clean_up) != 0:
+        for kill_event in battle[1:]:
+            victim = {
+                "id": kill_event["Victim"]['Id'], 
+                "name": kill_event["Victim"]['Name'], 
+                "equipment": kill_event["Victim"]['Equipment']
+            }
+
+            killer = {
+                "id": kill_event["Killer"]['Id'], 
+                "name": kill_event["Killer"]['Name'], 
+                "equipment": kill_event["Killer"]['Equipment']
+            }
+
+            killer_group_members = [{
+                    "id":player['Id'], 
+                    "name": player['Name'], 
+                    "equipment": player['Equipment']
+                }for player in kill_event["Participants"]]
+
+            if victim not in TeamA and killer not in TeamA:
+                clean_up += kill_event 
+
+            if victim not in TeamA or killer in TeamA:
+                TeamB.append(victim)
+                TeamA.append(killer)
+                TeamA.extend(killer_group_members)
+
+            else:
+                TeamA.append(victim)
+                TeamB.append(killer)
+                TeamB.extend(killer_group_members)
+
+
     TeamA = remove_duplicates(TeamA)
     TeamB = remove_duplicates(TeamB)
       
@@ -156,9 +202,12 @@ def get_battle_data(battle):
 def remove_duplicates(team):
     unique_team = []
     
+    unique_team_names = set()
+
     for player in team:
-        if not player in unique_team:
+        if not player["name"] in unique_team_names:
             unique_team.append(player)
+            unique_team_names.add(player["name"])
         
     return unique_team    
 
@@ -202,6 +251,7 @@ def generate_equipment_image_from_json(equipment_json:dict):
 
     equipment_image_path = f"{IMAGE_FOLDER}/equipments/{image_name}.png"
 
+    print(f"generating {equipment_image_path}")
     equipment_image.save(equipment_image_path)
     return equipment_image_path
             
@@ -237,11 +287,12 @@ def generate_battle_report_image(battle_events,id):
         coords = (coords[0]+IMAGE_SIZE,coords[1])
 
     battle_report_image_path = f"{IMAGE_FOLDER}/battle_reports/battle_report_{id}.png"
+    
+    print(f"generating {battle_report_image_path}")
     battle_report_image.save(battle_report_image_path)
     return battle_report_image_path
 
 def sort_teams_by_class(team):
-    print('sorting team')
 
     sorted_team = []
 
