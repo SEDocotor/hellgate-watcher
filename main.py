@@ -1,28 +1,28 @@
-from hellgate_watcher import generate_battle_report_image, get_recent_battles, find_10_man_battles, find_5v5_battles
-import requests
+from bot import bot
+import dotenv,os
+import hellgate_watcher
+import asyncio
 
-SERVER_URL = "https://gameinfo-ams.albiononline.com/api/gameinfo"
+dotenv.load_dotenv()
+DISCORDTOKEN = os.getenv('DISCORDTOKEN')
 
+async def async_main():
+    id = 287328728
+    hellgate_watcher.clear_covered_battles()
+
+    kill = await hellgate_watcher.fetch_response_from_request_url('https://gameinfo-ams.albiononline.com/api/gameinfo/events/287377014', return_json=True)
+    player = kill["Killer"]
+    max_ip = hellgate_watcher.get_max_ip_player(player)
+    print(f"player: {player["Name"]} can have up to {max_ip} IP")
+
+    is_capped = hellgate_watcher.is_ip_capped(await hellgate_watcher.get_battle_data_from_id(id))
+    print(f"Is IP capped: {is_capped}")
+    # await hellgate_watcher.generate_report_image_from_id(id)
 
 def main():
-    battles = get_recent_battles(SERVER_URL,limit=50,page=5)
-    print(f"Parsed {len(battles)} Battles")
-    battles = find_10_man_battles(battles)
-    print(f"Found {len(battles)} battles with 10 players")
-    battles = find_5v5_battles(battles)
-    print(f"Found {len(battles)} 5v5 battles")
-
-    print("Battles =====================================")
-    for battle in battles:
-        id = battle["id"]
-        battle_events = requests.get(f"{SERVER_URL}/events/battle/{id}").json()
-        generate_battle_report_image(battle_events,id)
-
-    
-    id = 286561876
-    battle_events = requests.get(f"{SERVER_URL}/events/battle/{id}").json()
-    generate_battle_report_image(battle_events,id)
-
+    hellgate_watcher.clear_covered_battles()
+    bot.run(DISCORDTOKEN)
 
 if __name__ == "__main__":
     main()
+    # asyncio.run(async_main())

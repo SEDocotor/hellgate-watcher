@@ -2,28 +2,24 @@ import discord
 from discord.ext import commands,tasks
 from hellgate_watcher import get_recent_battle_reports
 import dotenv,os,json
-
-CHANNELS_JSON_PATH = 'channels.json'
+import config
 
 def load_channels():
     try:
-        with open(CHANNELS_JSON_PATH, 'r') as f:
+        with open(config.CHANNELS_JSON_PATH, 'r') as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return {} 
 
 def save_channels(channel_map):
-    with open(CHANNELS_JSON_PATH, 'w') as f:
+    with open(config.CHANNELS_JSON_PATH, 'w') as f:
         json.dump(channel_map, f, indent=4)
 
 # DISCORD BOT
-dotenv.load_dotenv()
-DISCORDTOKEN = os.getenv('DISCORDTOKEN')
 
 intents = discord.Intents.default()
 intents.message_content = True
-
-bot = commands.Bot(command_prefix='!', intents=intents)
+bot = commands.Bot(command_prefix=config.BOT_COMMAND_PREFIX, intents=intents)
 
 @bot.event
 async def on_ready():
@@ -56,7 +52,7 @@ async def set_channel(ctx, channel: discord.TextChannel):
     save_channels(channels_map)
     await ctx.send(f'Battle reports will now be sent to {channel.mention}.')
 
-@tasks.loop(minutes=1)
+@tasks.loop(minutes=config.BATTLE_CHECK_INTERVAL_MINUTES)
 async def check_for_new_battles():
     battle_reports = await get_recent_battle_reports()
     
@@ -77,5 +73,3 @@ async def check_for_new_battles():
                     print(f"Error: Battle report file not found at {battle_report_path}")
                 except discord.HTTPException as e:
                     print(f"Error sending message to channel {channel.name} ({channel_id}): {e}")
-
-bot.run(DISCORDTOKEN)
