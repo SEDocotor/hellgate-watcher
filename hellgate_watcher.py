@@ -574,3 +574,22 @@ def clear_covered_battles():
     with open(COVERED_BATTLES_JSON_PATH, 'w') as f:
         json.dump([], f, indent=4)
 
+def clear_equipments_images():
+    for filename in os.listdir(os.path.join(IMAGE_FOLDER, "equipments")):
+        file_path = os.path.join(os.path.join(IMAGE_FOLDER, "equipments"), filename)
+        try:
+            if ".png" in filename and os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)
+        except Exception as e:
+            print('Failed to delete %s. Reason: %s' % (file_path, e))
+
+def clear_battle_reports_images():
+    for filename in os.listdir(os.path.join(IMAGE_FOLDER, "battle_reports")):
+        file_path = os.path.join(os.path.join(IMAGE_FOLDER, "battle_reports"), filename)
+        try:
+            if ".png" in filename and os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)
+        except Exception as e:
+            print('Failed to delete %s. Reason: %s' % (file_path, e))
+
+            

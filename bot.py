@@ -73,3 +73,10 @@ async def check_for_new_battles():
                     print(f"Error: Battle report file not found at {battle_report_path}")
                 except discord.HTTPException as e:
                     print(f"Error sending message to channel {channel.name} ({channel_id}): {e}")
+
+@tasks.loop(hours=24)
+async def clear_storage():
+    config.clear_battle_reports_images()
+    config.clear_equipments_images()
+    config.clear_covered_battles()
+
