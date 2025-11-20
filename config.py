@@ -19,6 +19,9 @@ BATTLES_MAX_AGE_MINUTES = 5
 # FILE PATHS
 # --------------------------------------------------------------------------------------------------
 IMAGE_FOLDER = "./images"
+ITEM_IMAGE_FOLDER = "./images/items"
+EQUIPMENT_IMAGE_FOLDER = "./images/equipments"
+BATTLE_REPORT_IMAGE_FOLDER = "./images/battle_reports"
 COVERED_BATTLES_JSON_PATH = "./covered_battle_reports.json"
 CHANNELS_JSON_PATH = 'channels.json'
 PLAYER_NAME_FONT_PATH = "arialbd.ttf"
@@ -53,7 +56,7 @@ PLAYER_NAME_FONT_SIZE = 40
 TIMESTAMP_FONT_SIZE = 60
 FONT_COLOR = (255, 255, 255)
 LINE_SPACING = 20
-DEAD_PLAYER_GRAYSCALE_ENHANCEMENT = 0.8
+DEAD_PLAYER_GRAYSCALE_ENHANCEMENT = 0.2
 
 # --------------------------------------------------------------------------------------------------
 # EQUIPMENT AND LAYOUT
@@ -64,7 +67,7 @@ LAYOUT = {
     "Potion": (0, 2), "Shoes": (1, 2), "Food": (2, 2)
 }
 IMAGE_SIZE = 217
-CANVAS_SIZE = (3 * IMAGE_SIZE, 3 * IMAGE_SIZE)
+EQUIPMENT_CANVAS_SIZE = (3 * IMAGE_SIZE, 3 * IMAGE_SIZE)
 
 # --------------------------------------------------------------------------------------------------
 # WEAPON LISTS
@@ -88,3 +91,6 @@ QUALITY_IP = {
         "4": 60,
         "5": 100,
     }
+LETHAL_5v5_SOFTCAP_PERCENT = 35
+LETHAL_5v5_IP_CAP = 1100
+OVERCHARGE_BONUS_IP = 100

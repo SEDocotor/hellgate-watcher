@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands,tasks
 from hellgate_watcher import get_recent_battle_reports
-import dotenv,os,json
+import json
 import config
 
 def load_channels():

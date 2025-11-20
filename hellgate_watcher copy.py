@@ -1,0 +1,425 @@
+import asyncio
+from datetime import datetime,timedelta
+import json
+from typing import TypedDict,List,Dict
+from PIL import Image,ImageDraw,ImageFont,ImageEnhance
+import os
+import aiohttp
+from config import *
+
+class Item(TypedDict):
+    type: str
+    quality: int
+
+class Equipment(TypedDict):
+    bag: Item
+    head: Item
+    cape: Item
+    mainHand: Item
+    armor: Item
+    offHand: Item
+    potion: Item
+    shoes: Item
+    food: Item
+
+
+class Player(TypedDict):
+    id: str
+    name: str
+    guild: str
+    alliance: str
+    equipment: Equipment
+    averageItemPower: float
+
+class Battle(TypedDict):
+    id: str
+    startTime: str
+    team_a_ids: list[int]
+    team_b_ids: list[int]
+    players: dict[str: Player]
+    victims: list[str]
+    events: list[dict]
+
+def get_battle_reports():
+    hellgate_battles = get_hellgate_battles()
+    hellgate_battle_reports = generate_battle_reports(hellgate_battles)
+    return hellgate_battle_reports
+
+def get_hellgate_battles() -> List[Battle]:
+    recent_battles = get_50_battles()
+    hellgate_battles = []
+    for battle in recent_battles:
+        if is_hellgate_battle(battle):
+            hellgate_battles.append(battle)
+    return hellgate_battles
+
+def is_hellgate_battle(battle: Battle) -> bool:
+    ten_player_battle = is_ten_player_battle(battle)
+    if not ten_player_battle:
+        return False
+    
+    five_vs_five = is_five_vs_five_battle(battle)
+    if not five_vs_five:
+        return False
+    
+    ip_capped = is_ip_capped(battle)
+    if not ip_capped:
+        return False
+    
+    return True
+
+def is_ten_player_battle(battle: Battle) -> bool:
+    return len(battle.players) == 10
+
+def is_five_vs_five_battle(battle: Battle) -> bool:
+    return len(battle.team_a_ids) == 5 and len(battle.team_b_ids) == 5
+
+def is_ip_capped(battle: Battle) -> bool:
+    for _ in range(5):
+        for player in battle.players:
+            max_ip = get_max_ip_player(player)
+            if player.averageItemPower > max_ip:
+                print(f"Player {player.name} has {int(player.averageItemPower)} IP, however the maximum possible IP is {max_ip}")
+                return False
+    return True
+
+def get_max_ip_player(player: Player) -> int:
+    max_ip_player = 0
+    for key in player.equipment:
+        max_ip_player += get_max_ip_item(player.equipment[key])
+    if not player.equipment.offhand.type:
+        max_ip_player += get_max_ip_item(player.equipment.mainHand)
+
+    max_average_ip_player = (max_ip_player + OVERCHARGE_BONUS_IP * 5) / 6
+    return int(max_average_ip_player+1)
+
+def get_max_ip_item(item: Item) -> float:
+    if not item:
+        return 0.
+    
+    tier = 4
+    if item.type[0].upper() == "T":
+        tier = float(item.type[1])
+    
+    enchatment = 0
+    if item.type[-2] == "@":
+        enchatment = float(item.type[-1])
+
+    mastery_bonus_percent = tier - 4 * 5
+    base_ip = 300 + (tier+enchatment) * 100 + QUALITY_IP[str(item.quality)]
+    max_ip = base_ip + (120 * 2 + 36 * 2 + 48 + 3 * 7) * (1 + mastery_bonus_percent / 100)
+    max_ip = apply_5v5_ip_soft_cap(max_ip)
+    return max_ip + 1
+
+def apply_5v5_ip_soft_cap(ip: float) -> float:
+    return LETHAL_5v5_IP_CAP + (ip - LETHAL_5v5_IP_CAP) * (LETHAL_5v5_SOFTCAP_PERCENT / 100)
+
+def generate_battle_reports(battles: List[Battle]) -> List[str]:
+    battle_reports = [generate_battle_report(battle) for battle in battles]
+    return battle_reports
+
+async def generate_equipment_image(equipment: Equipment):
+    item_images = {}
+
+    for key in equipment:
+        if equipment[key] == None:
+            continue
+        image_path = await generate_item_image(equipment[key])
+        item_images[key] = image_path
+
+    equipment_image = Image.new('RGB',EQUIPMENT_CANVAS_SIZE, BACKGROUND_COLOR)
+
+    for item_slot in equipment:
+        image = equipment[item_slot]
+        if not image:
+            continue
+        if item_slot in LAYOUT:
+            item_image = Image.open(image).convert('RGBA')
+            coords = (LAYOUT[item_slot][0]*IMAGE_SIZE, LAYOUT[item_slot][1]*IMAGE_SIZE)
+            R, G, B, A = item_image.split()
+            equipment_image.paste(item_image,coords,A)
+
+    for item_slot, item_image in item_images.items():
+        item_image = Image.open(item_image).convert('RGBA')
+        coords = (LAYOUT[item_slot][0]*IMAGE_SIZE, LAYOUT[item_slot][1]*IMAGE_SIZE)
+        R, G, B, A = item_image.split()
+        equipment_image.paste(item_image,coords,A)
+
+    image_name = "equipment_"
+    for item_slot,item in equipment.items():
+        if item is None:
+            continue
+        image_name += item.type
+
+    equipment_image_path = f"{EQUIPMENT_IMAGE_FOLDER}/{image_name}.png"
+
+    if VERBOSE_LOGGING:
+        print(f"generating {equipment_image_path}")
+
+    equipment_image.save(equipment_image_path)
+
+    return equipment_image_path
+
+async def generate_item_image(item: Item) -> str | None:
+    if not item:
+        return None
+
+    item_image_path = f"{ITEM_IMAGE_FOLDER}/{item.type}&{item.quality}.png"
+    if os.path.exists(item_image_path):
+            return item_image_path
+
+    url = f"{RENDER_API_URL}{item.type}.png?count=1&quality={item.quality}"
+
+    image = await get_image(url)
+    if not image: 
+        return None
+
+    with open(item_image_path,'wb') as f:
+        f.write(image)
+    return item_image_path
+
+async def get_image(url: str) -> bytes:
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=TIMEOUT)) as session:
+        try:
+            async with session.get(url) as response:
+                response.raise_for_status()
+                return await response.read()    
+                
+        except Exception as e:
+            print(f"An error occurred while fetching {url}: {e}")
+            return None
+
+async def get_json(url: str) -> Dict:
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=TIMEOUT)) as session:
+        try:
+            async with session.get(url) as response:
+                response.raise_for_status()
+                return await response.json()
+                
+        except Exception as e:
+            print(f"An error occurred while fetching {url}: {e}")
+            return None
+
+async def generate_battle_report(battle: Battle) -> str:
+    
+    battle_report_image = Image.new('RGB', BATTLE_REPORT_CANVAS_SIZE, BACKGROUND_COLOR)
+
+    draw = ImageDraw.Draw(battle_report_image)
+    
+    try:
+        player_name_font = ImageFont.truetype(PLAYER_NAME_FONT_PATH, PLAYER_NAME_FONT_SIZE) # Keep player name font size
+        timestamp_font = ImageFont.truetype(TIMESTAMP_FONT_PATH, TIMESTAMP_FONT_SIZE) # Increased font size for timestamp
+        ip_font = ImageFont.truetype(TIMESTAMP_FONT_PATH, 35)
+    except IOError:
+        print("Font not found. Using default font.")
+        player_name_font = ImageFont.load_default()
+        timestamp_font = ImageFont.load_default()
+        ip_font = ImageFont.load_default()
+
+    async def draw_team(y_pos, team_ids):
+        for i, player_id in enumerate(battle.team_a_ids):
+
+            x_pos = SIDE_PADDING + i * (EQUIPMENT_IMAGE_SIZE + SPACING)
+            player = battle.players[player_id]
+            
+            # Draw player name
+            # Center the name above the equipment image
+            bbox = draw.textbbox((0, 0), player.name, font=player_name_font)
+            text_width = bbox[2] - bbox[0]
+            draw.text(
+                text=player.name, 
+                xy=(x_pos + (EQUIPMENT_IMAGE_SIZE - text_width) / 2, y_pos), 
+                font=player_name_font, 
+                fill=FONT_COLOR
+            )
+
+            # Paste equipment image
+            equipment_image_path = await generate_equipment_image(player.equipment)
+            equipment_image = Image.open(equipment_image_path).convert('RGBA')
+
+            # Make dead players gray
+            if player.id in battle.victims:
+                enhancer = ImageEnhance.Color(equipment_image)
+                equipment_image = enhancer.enhance(DEAD_PLAYER_GRAYSCALE_ENHANCEMENT) 
+
+            R, G, B, A = equipment_image.split()
+            battle_report_image.paste(
+                im = equipment_image, 
+                box = (x_pos, y_pos + PLAYER_NAME_AREA_HEIGHT),
+                mask = A
+            )
+
+            # Draw Average Item Power
+            ip_text = str(round(player.averageItemPower))
+            bbox = draw.textbbox((0, 0), ip_text, font=ip_font)
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+            ip_text_x = x_pos + (EQUIPMENT_IMAGE_SIZE - text_width) / 2
+            ip_text_y = y_pos + PLAYER_NAME_AREA_HEIGHT + EQUIPMENT_IMAGE_SIZE + (IP_AREA_HEIGHT - text_height) / 2
+            draw.text((ip_text_x, ip_text_y), ip_text, font=ip_font, fill=FONT_COLOR)
+
+    # --- Draw Team A ---
+    y_pos = TOP_BOTTOM_PADDING
+    await draw_team(y_pos, battle.team_a_ids)
+
+    # --- Draw Team B ---
+    y_pos = TOP_BOTTOM_PADDING + PLAYER_NAME_AREA_HEIGHT + EQUIPMENT_IMAGE_SIZE + IP_AREA_HEIGHT + MIDDLE_GAP
+    await draw_team(y_pos, battle.team_b_ids)
+   
+    # --- Draw Timestamp ---
+    
+    times = [datetime.fromisoformat(event['TimeStamp'].replace('Z', '+00:00')) for event in battle.events]
+    duration = (max(times) - min(times)).total_seconds()
+    duration_minutes = int(duration // 60)
+    duration_seconds = duration % 60
+    start_time = min(times)
+
+
+    # Format the text strings
+    start_time_text = f"Start Time: {start_time.strftime('%H:%M:%S')} UTC"
+    duration_text = f"Duration: {duration_minutes:02d}m {duration_seconds:02d}s"
+
+    # Calculate text position for centering
+    timestamp_y = TOP_BOTTOM_PADDING + PLAYER_NAME_AREA_HEIGHT + EQUIPMENT_IMAGE_SIZE + IP_AREA_HEIGHT + (MIDDLE_GAP // 2)
+    
+    # Using textbbox for better centering if available (Pillow >= 8.0.0)
+    start_bbox = draw.textbbox((0, 0), start_time_text, font=timestamp_font)
+    start_text_width = start_bbox[2] - start_bbox[0]
+    text_height = start_bbox[3] - start_bbox[1] # Height of a single line of text
+
+    # Calculate vertical positions for centered text with spacing
+    start_text_y = timestamp_y - (text_height + LINE_SPACING) / 2
+    duration_text_y = start_text_y + text_height + LINE_SPACING
+
+    draw.text(((CANVAS_WIDTH - start_text_width) / 2, start_text_y), start_time_text, font=timestamp_font, fill=(255, 255, 255))
+
+    duration_bbox = draw.textbbox((0, 0), duration_text, font=timestamp_font)
+    duration_text_width = duration_bbox[2] - duration_bbox[0]
+    draw.text(((CANVAS_WIDTH - duration_text_width) / 2, duration_text_y), duration_text, font=timestamp_font, fill=(255, 255, 255))
+         
+    battle_report_image_path = f"{BATTLE_REPORT_IMAGE_FOLDER}/battle_report_{id}.png"
+
+    print(f"generating {battle_report_image_path}")
+    battle_report_image.save(battle_report_image_path)
+    return 
+
+def get_battle_objects(battle_dict:dict,battle_events:list[dict])->Battle:
+    battle = Battle()
+    battle.id = battle_dict["id"]
+    battle.startTime = battle_dict["startTime"]
+    battle.events = battle_events
+    battle.victims = [event["Victim"]["Id"] for event in battle_events]
+    battle.players = get_players(battle_dict, battle_events)
+    team_a_ids, team_b_ids = get_team_ids(battle_dict, battle_events)
+    battle.team_a_ids = team_a_ids
+    battle.team_b_ids = team_b_ids
+
+def get_players(battle_dict, battle_events):
+    players = []
+    for player_dict in battle_dict["players"]:
+        player = Player()
+        player.id = player_dict["Id"]
+        player.name = player_dict["Name"]
+        player.guild = player_dict["GuildName"]
+        player.alliance = player_dict["AllianceName"]
+        player.equipment = get_equipment(player.id, battle_events)
+        player.averageItemPower = player_dict["AverageItemPower"]
+        players.append(player)
+    return players
+    
+def get_equipment(id, battle_events):
+    equipment = Equipment()
+    for event in battle_events:
+        player_data = []
+        player_data.append(event["Killer"])
+        player_data.append(event["Victim"])
+        for participant in event["Participants"]:
+            player_data.append(participant)
+        for group_member in event["GroupMembers"]:
+            player_data.append(group_member)
+        for player in player_data:
+            if player["Id"] == id:
+                if player["Equipment"]["MainHand"]: equipment.mainHand  = get_item(player["Equipment"]["MainHand"])
+                if player["Equipment"]["OffHand"]:  equipment.offHand   = get_item(player["Equipment"]["OffHand"]) 
+                if player["Equipment"]["Armor"]:    equipment.armor     = get_item(player["Equipment"]["Armor"]) 
+                if player["Equipment"]["Head"]:     equipment.head      = get_item(player["Equipment"]["Head"]) 
+                if player["Equipment"]["Shoes"]:    equipment.shoes     = get_item(player["Equipment"]["Shoes"]) 
+                if player["Equipment"]["Cape"]:     equipment.cape      = get_item(player["Equipment"]["Cape"]) 
+                if player["Equipment"]["Bag"]:      equipment.bag       = get_item(player["Equipment"]["Bag"]) 
+                if player["Equipment"]["Potion"]:   equipment.potion    = get_item(player["Equipment"]["Potion"]) 
+                if player["Equipment"]["Food"]:     equipment.food      = get_item(player["Equipment"]["Food"]) 
+
+    return equipment
+
+def get_item(item_dict):
+    item = Item()
+    item.type = item_dict["Type"]
+    item.quality = item_dict["Quality"]
+    return item
+
+def get_team_ids(battle_dict, battle_events):
+    pass
+
+
+
+def load_covered_battles():
+    try:
+        with open(COVERED_BATTLES_JSON_PATH, 'r') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return [] 
+
+def save_covered_battles(covered_battles):
+    with open(COVERED_BATTLES_JSON_PATH, 'w') as f:
+        json.dump(covered_battles, f, indent=4)
+
+async def get_50_battles(server_url, limit=BATTLES_LIMIT,page=1):
+    battles = []
+    request = f"{server_url}/battles?limit={limit}&sort=recent&offset={page*limit}"
+    response_json = await get_json(request)
+
+    if response_json:
+        battles.extend(list(response_json))
+    return battles
+
+def contains_battles_out_of_range(battles):
+    times = [datetime.fromisoformat(battle["startTime"].replace('Z', '+00:00')) for battle in battles]
+    return max(times) - min(times) > timedelta(minutes=BATTLES_MAX_AGE_MINUTES)
+
+async def get_recent_battles() -> List[Battle]:
+    battles_dicts = []
+    battles = []
+    battle_report_paths = []
+    contains_battles_out_of_range = False
+    page_number = 0
+
+    while not contains_battles_out_of_range(battles_dicts):
+        battles_dicts.extend(await get_50_battles(SERVER_URL,limit=BATTLES_LIMIT,page=page_number))
+        page_number += 1
+        await asyncio.sleep(RATE_LIMIT_DELAY_SECONDS)
+    
+    print(f"Parsed {len(battles_dicts)} Battles")
+    
+    battles_dicts = [battle for battle in battles_dicts if len(battle["players"]) == 10]
+    print(f"Found {len(battles_dicts)} battles with 10 players")
+
+    covered_battle_reports = load_covered_battles()
+
+    for battle_dict in battles_dicts:
+        id = battle_dict["id"]
+        if id not in covered_battle_reports:
+            url = f"{SERVER_URL}/events/battle/{id}"
+            battle_events = await get_json(url)
+            
+            if not battle_events:
+                continue
+
+            battle = get_battle_objects(battle_dict, battle_events)
+
+            if not is_hellgate_battle(battle):
+                continue
+            
+            battles.append(battle)
+    
+    print(f"Found {len(battles)} hellgate battles")
+    return battles

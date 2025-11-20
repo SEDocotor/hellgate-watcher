@@ -233,34 +233,31 @@ async def generate_equipment_image_from_json(equipment_json:dict):
     images = {}
 
     for item_slot,item in equipment_json.items():
-        if item is None:
-            continue
+        item_image = await generate_item_image_from_json(item)
+        if item_image:
+            images[item_slot] = item_image
 
-        image = await generate_item_image_from_json(item)
-        if image is None:
-            continue
-        images[item_slot] = image
+    equipment_image = Image.new('RGB',EQUIPMENT_CANVAS_SIZE, BACKGROUND_COLOR)
 
-    equipment_image = Image.new('RGB',CANVAS_SIZE, BACKGROUND_COLOR)
+    for item_slot, item_image in images.items():
+        item_image = Image.open(item_image).convert('RGBA')
+        coords = (LAYOUT[item_slot][0]*IMAGE_SIZE, LAYOUT[item_slot][1]*IMAGE_SIZE)
+        R, G, B, A = item_image.split()
+        equipment_image.paste(item_image,coords,A)
 
-    for item_slot,image in images.items():
-        if item_slot in LAYOUT:
-            item_image = Image.open(image).convert('RGBA')
-            coords = (LAYOUT[item_slot][0]*IMAGE_SIZE, LAYOUT[item_slot][1]*IMAGE_SIZE)
-            R, G, B, A = item_image.split()
-            equipment_image.paste(item_image,coords,A)
-
-    image_name = ""
+    image_name = "equipment_"
     for item_slot,item in equipment_json.items():
         if item is None:
             continue
         image_name += item["Type"]
 
-    equipment_image_path = f"{IMAGE_FOLDER}/equipments/equipment_{image_name}.png"
+    equipment_image_path = f"{EQUIPMENT_IMAGE_FOLDER}/{image_name}.png"
 
     if VERBOSE_LOGGING:
         print(f"generating {equipment_image_path}")
+
     equipment_image.save(equipment_image_path)
+
     return equipment_image_path
             
 async def generate_battle_report_image(battle_events,id):
