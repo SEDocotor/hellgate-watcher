@@ -18,7 +18,7 @@ from config import (
     EQUIPMENT_IMAGE_FOLDER,
     ITEM_IMAGE_FOLDER,
     BATTLE_REPORT_IMAGE_FOLDER,
-    COVERED_BATTLES_JSON_PATH,
+    REPORTED_BATTLES_JSON_PATH,
     RATE_LIMIT_DELAY_SECONDS,
     TIMEOUT,
     PLAYER_NAME_FONT_PATH,
@@ -74,17 +74,17 @@ class Battle(TypedDict):
     startTime: str
     team_a_ids: list[int]
     team_b_ids: list[int]
-    players: dict[str: Player]
+    players: dict[str, Player]
     victims: list[str]
     events: list[dict]
 
-def get_battle_reports():
-    hellgate_battles = get_hellgate_battles()
-    hellgate_battle_reports = generate_battle_reports(hellgate_battles)
+async def get_battle_reports():
+    hellgate_battles = await get_hellgate_battles()
+    hellgate_battle_reports = await generate_battle_reports(hellgate_battles)
     return hellgate_battle_reports
 
-def get_hellgate_battles() -> List[Battle]:
-    recent_battles = get_50_battles()
+async def get_hellgate_battles() -> List[Battle]:
+    recent_battles = await get_recent_battles()
     hellgate_battles = []
     for battle in recent_battles:
         if is_hellgate_battle(battle):
@@ -107,68 +107,80 @@ def is_hellgate_battle(battle: Battle) -> bool:
     return True
 
 def is_ten_player_battle(battle: Battle) -> bool:
-    return len(battle.players) == 10
+    return len(battle["players"]) == 10
 
 def is_five_vs_five_battle(battle: Battle) -> bool:
-    return len(battle.team_a_ids) == 5 and len(battle.team_b_ids) == 5
+    for event in battle["events"]:
+        if event["groupMemberCount"] != 5:
+            return False
+    return True
 
 def is_ip_capped(battle: Battle) -> bool:
-    for _ in range(5):
-        for player in battle.players:
-            max_ip = get_max_ip_player(player)
-            if player.averageItemPower > max_ip:
-                print(f"Player {player.name} has {int(player.averageItemPower)} IP, however the maximum possible IP is {max_ip}")
-                return False
+    for player in battle["players"].values():
+        max_ip = get_max_ip_player(player)
+        if player['averageItemPower'] > max_ip + 75:
+            print(f"Player {player['name']} has {int(player['averageItemPower'])} IP, however the maximum possible IP is {max_ip}. Battle id {battle['id']}")
+            return False
     return True
 
 def get_max_ip_player(player: Player) -> int:
     max_ip_player = 0
-    for key in player.equipment:
-        max_ip_player += get_max_ip_item(player.equipment[key])
-    if not player.equipment.offhand.type:
-        max_ip_player += get_max_ip_item(player.equipment.mainHand)
+    for key in player['equipment'].keys():
+        if key in ["bag", "potion", "food"]:
+            continue
+        elif key == "cape":
+            max_ip_player += get_max_ip_item(player['equipment'][key], is_cape=True)
+            continue
+        
+        max_ip_player += get_max_ip_item(player['equipment'][key])
+    if not player['equipment']['offHand']:
+        max_ip_player += get_max_ip_item(player['equipment']['mainHand'])
+    max_average_ip_player = max_ip_player / 6
+    return int(max_average_ip_player)
 
-    max_average_ip_player = (max_ip_player + OVERCHARGE_BONUS_IP * 5) / 6
-    return int(max_average_ip_player+1)
-
-def get_max_ip_item(item: Item) -> float:
+def get_max_ip_item(item: Item, is_cape = False) -> float:
     if not item:
         return 0.
     
     tier = 4
-    if item.type[0].upper() == "T":
-        tier = float(item.type[1])
+    if item['type'][0].upper() == "T":
+        tier = float(item['type'][1])
     
     enchatment = 0
-    if item.type[-2] == "@":
-        enchatment = float(item.type[-1])
+    if item['type'][-2] == "@":
+        enchatment = float(item['type'][-1])
 
     mastery_bonus_percent = tier - 4 * 5
-    base_ip = 300 + (tier+enchatment) * 100 + QUALITY_IP[str(item.quality)]
-    max_ip = base_ip + (120 * 2 + 36 * 2 + 48 + 3 * 7) * (1 + mastery_bonus_percent / 100)
-    max_ip = apply_5v5_ip_soft_cap(max_ip)
-    return max_ip + 1
+    base_ip = 300 + (tier+enchatment) * 100 + QUALITY_IP[str(item['quality'])]
+    max_spec_bonus_ip = (120 * 2 + 36 * 2 + 48 + 3 * 7) * (not is_cape)
+    overcharge_bonus = OVERCHARGE_BONUS_IP * (not is_cape)
+    max_ip = base_ip + max_spec_bonus_ip * (1 + mastery_bonus_percent / 100) + overcharge_bonus
+    max_ip_soft_capped = apply_5v5_ip_soft_cap(max_ip)
+
+    return max_ip_soft_capped
 
 def apply_5v5_ip_soft_cap(ip: float) -> float:
+    if ip <= LETHAL_5v5_IP_CAP:
+        return ip
     return LETHAL_5v5_IP_CAP + (ip - LETHAL_5v5_IP_CAP) * (LETHAL_5v5_SOFTCAP_PERCENT / 100)
 
-def generate_battle_reports(battles: List[Battle]) -> List[str]:
-    battle_reports = [generate_battle_report(battle) for battle in battles]
+async def generate_battle_reports(battles: List[Battle]) -> List[str]:
+    battle_reports = [await generate_battle_report(battle) for battle in battles]
     return battle_reports
 
 async def generate_equipment_image(equipment: Equipment) -> str:
     item_images = {}
 
-    for key in equipment:
-        if not equipment[key]:
+    for item_slot in equipment:
+        if not equipment[item_slot]:
             continue
-        image_path = await generate_item_image(equipment[key])
-        item_images[key] = image_path
+        image_path = await generate_item_image(equipment[item_slot])
+        item_images[item_slot] = image_path
 
     equipment_image = Image.new('RGB',EQUIPMENT_CANVAS_SIZE, BACKGROUND_COLOR)
 
-    for item_slot in equipment:
-        image = equipment[item_slot]
+    for item_slot in item_images:
+        image = item_images[item_slot]
         if not image:
             continue
         if item_slot in LAYOUT:
@@ -187,7 +199,7 @@ async def generate_equipment_image(equipment: Equipment) -> str:
     for item_slot,item in equipment.items():
         if item is None:
             continue
-        image_name += item.type
+        image_name += item['type']
 
     equipment_image_path = f"{EQUIPMENT_IMAGE_FOLDER}/{image_name}.png"
 
@@ -202,11 +214,11 @@ async def generate_item_image(item: Item) -> str | None:
     if not item:
         return None
 
-    item_image_path = f"{ITEM_IMAGE_FOLDER}/{item.type}&{item.quality}.png"
+    item_image_path = f"{ITEM_IMAGE_FOLDER}/{item['type']}&{item['quality']}.png"
     if os.path.exists(item_image_path):
             return item_image_path
 
-    url = f"{RENDER_API_URL}{item.type}.png?count=1&quality={item.quality}"
+    url = f"{RENDER_API_URL}{item['type']}.png?count=1&quality={item['quality']}"
 
     image = await get_image(url)
     if not image: 
@@ -255,28 +267,28 @@ async def generate_battle_report(battle: Battle) -> str:
         ip_font = ImageFont.load_default()
 
     async def draw_team(y_pos, team_ids):
-        for i, player_id in enumerate(battle.team_a_ids):
+        for i, player_id in enumerate(team_ids):
 
             x_pos = SIDE_PADDING + i * (EQUIPMENT_IMAGE_SIZE + SPACING)
-            player = battle.players[player_id]
+            player = battle['players'][player_id]
             
             # Draw player name
             # Center the name above the equipment image
-            bbox = draw.textbbox((0, 0), player.name, font=player_name_font)
+            bbox = draw.textbbox((0, 0), player['name'], font=player_name_font)
             text_width = bbox[2] - bbox[0]
             draw.text(
-                text=player.name, 
+                text=player['name'], 
                 xy=(x_pos + (EQUIPMENT_IMAGE_SIZE - text_width) / 2, y_pos), 
                 font=player_name_font, 
                 fill=FONT_COLOR
             )
 
             # Paste equipment image
-            equipment_image_path = await generate_equipment_image(player.equipment)
+            equipment_image_path = await generate_equipment_image(player['equipment'])
             equipment_image = Image.open(equipment_image_path).convert('RGBA')
 
             # Make dead players gray
-            if player.id in battle.victims:
+            if player['id'] in battle['victims']:
                 enhancer = ImageEnhance.Color(equipment_image)
                 equipment_image = enhancer.enhance(DEAD_PLAYER_GRAYSCALE_ENHANCEMENT) 
 
@@ -288,7 +300,7 @@ async def generate_battle_report(battle: Battle) -> str:
             )
 
             # Draw Average Item Power
-            ip_text = str(round(player.averageItemPower))
+            ip_text = str(round(player['averageItemPower']))
             bbox = draw.textbbox((0, 0), ip_text, font=ip_font)
             text_width = bbox[2] - bbox[0]
             text_height = bbox[3] - bbox[1]
@@ -296,21 +308,23 @@ async def generate_battle_report(battle: Battle) -> str:
             ip_text_y = y_pos + PLAYER_NAME_AREA_HEIGHT + EQUIPMENT_IMAGE_SIZE + (IP_AREA_HEIGHT - text_height) / 2
             draw.text((ip_text_x, ip_text_y), ip_text, font=ip_font, fill=FONT_COLOR)
 
+
     # --- Draw Team A ---
     y_pos = TOP_BOTTOM_PADDING
-    await draw_team(y_pos, battle.team_a_ids)
+    await draw_team(y_pos, battle['team_a_ids'])
 
     # --- Draw Team B ---
     y_pos = TOP_BOTTOM_PADDING + PLAYER_NAME_AREA_HEIGHT + EQUIPMENT_IMAGE_SIZE + IP_AREA_HEIGHT + MIDDLE_GAP
-    await draw_team(y_pos, battle.team_b_ids)
+    await draw_team(y_pos, battle['team_b_ids'])
    
     # --- Draw Timestamp ---
-    
-    times = [datetime.fromisoformat(event['TimeStamp'].replace('Z', '+00:00')) for event in battle.events]
+    times = [datetime.fromisoformat(event['TimeStamp']) for event in battle['events']]
     duration = (max(times) - min(times)).total_seconds()
     duration_minutes = int(duration // 60)
-    duration_seconds = duration % 60
-    start_time = min(times)
+    duration_seconds = int(duration % 60)
+    start_time = battle['startTime']
+    start_time = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+
 
 
     # Format the text strings
@@ -335,38 +349,50 @@ async def generate_battle_report(battle: Battle) -> str:
     duration_text_width = duration_bbox[2] - duration_bbox[0]
     draw.text(((CANVAS_WIDTH - duration_text_width) / 2, duration_text_y), duration_text, font=timestamp_font, fill=(255, 255, 255))
          
-    battle_report_image_path = f"{BATTLE_REPORT_IMAGE_FOLDER}/battle_report_{id}.png"
+    battle_report_image_path = f"{BATTLE_REPORT_IMAGE_FOLDER}/battle_report_{battle['id']}.png"
 
     print(f"generating {battle_report_image_path}")
     battle_report_image.save(battle_report_image_path)
-    return 
+    return battle_report_image_path
+def get_battle_object(battle_dict:dict, battle_events:list[dict])->Battle:
+    
+    battle = Battle(
+        id=battle_dict["id"],
+        startTime = battle_dict["startTime"],
+        events = battle_events,
+        victims = [event["Victim"]["Id"] for event in battle_events],
+        players = get_players(battle_dict, battle_events),
+    )
+    split_ids_by_team(battle=battle)
 
-def get_battle_objects(battle_dict:dict,battle_events:list[dict])->Battle:
-    battle = Battle()
-    battle.id = battle_dict["id"]
-    battle.startTime = battle_dict["startTime"]
-    battle.events = battle_events
-    battle.victims = [event["Victim"]["Id"] for event in battle_events]
-    battle.players = get_players(battle_dict, battle_events)
-    team_a_ids, team_b_ids = get_ids_by_team(battle_dict, battle_events)
-    battle.team_a_ids = team_a_ids
-    battle.team_b_ids = team_b_ids
+    return battle
 
-def get_players(battle_dict, battle_events) -> List[Player]:
-    players = []
-    for player_dict in battle_dict["players"]:
-        player = Player()
-        player.id = player_dict["Id"]
-        player.name = player_dict["Name"]
-        player.guild = player_dict["GuildName"]
-        player.alliance = player_dict["AllianceName"]
-        player.equipment = get_equipment(player.id, battle_events)
-        player.averageItemPower = player_dict["AverageItemPower"]
-        players.append(player)
+def get_players(battle_dict, battle_events) -> Dict[str, Player]:
+    players = {}
+    for player_id, player_dict in battle_dict["players"].items():
+        player = Player(
+            id=player_id,
+            name = player_dict["name"],
+            guild = player_dict["guildName"],
+            alliance = player_dict["allianceName"],
+            equipment = get_equipment(player_id, battle_events),
+            averageItemPower=get_average_item_power(player_id, battle_events)
+        )
+        players[player["id"]] = player
     return players
     
 def get_equipment(id, battle_events) -> Equipment:
-    equipment = Equipment()
+    equipment = Equipment(
+        mainHand=None,
+        offHand=None,
+        armor=None,
+        head=None,
+        shoes=None,
+        cape=None,
+        bag=None,
+        potion=None,
+        food=None,
+    )
     for event in battle_events:
         player_data = []
         player_data.append(event["Killer"])
@@ -377,48 +403,67 @@ def get_equipment(id, battle_events) -> Equipment:
             player_data.append(group_member)
         for player in player_data:
             if player["Id"] == id:
-                if player["Equipment"]["MainHand"]: 
-                    equipment.mainHand  = get_item(player["Equipment"]["MainHand"])
-                if player["Equipment"]["OffHand"]:  
-                    equipment.offHand   = get_item(player["Equipment"]["OffHand"]) 
-                if player["Equipment"]["Armor"]:    
-                    equipment.armor     = get_item(player["Equipment"]["Armor"]) 
-                if player["Equipment"]["Head"]:     
-                    equipment.head      = get_item(player["Equipment"]["Head"]) 
-                if player["Equipment"]["Shoes"]:    
-                    equipment.shoes     = get_item(player["Equipment"]["Shoes"]) 
-                if player["Equipment"]["Cape"]:     
-                    equipment.cape      = get_item(player["Equipment"]["Cape"]) 
-                if player["Equipment"]["Bag"]:      
-                    equipment.bag       = get_item(player["Equipment"]["Bag"]) 
-                if player["Equipment"]["Potion"]:   
-                    equipment.potion    = get_item(player["Equipment"]["Potion"]) 
-                if player["Equipment"]["Food"]:     
-                    equipment.food      = get_item(player["Equipment"]["Food"]) 
-
+                
+                if equipment["mainHand"] == None :
+                    equipment["mainHand"]= get_item(player["Equipment"]["MainHand"])
+                if equipment["offHand"] == None :  
+                    equipment["offHand"]= get_item(player["Equipment"]["OffHand"])
+                if equipment["armor"] == None :  
+                    equipment["armor"]= get_item(player["Equipment"]["Armor"])
+                if equipment["head"] == None :  
+                    equipment["head"]= get_item(player["Equipment"]["Head"])  
+                if equipment["shoes"] == None :
+                    equipment["shoes"]= get_item(player["Equipment"]["Shoes"])
+                if equipment["cape"] == None :  
+                    equipment["cape"]= get_item(player["Equipment"]["Cape"])
+                if equipment["bag"] == None :  
+                    equipment["bag"]= get_item(player["Equipment"]["Bag"])  
+                if equipment["potion"] == None :
+                    equipment["potion"]= get_item(player["Equipment"]["Potion"])
+                if equipment["food"] == None :  
+                    equipment["food"]= get_item(player["Equipment"]["Food"])  
     return equipment
 
-def get_item(item_dict) -> Item:
-    item = Item()
-    item.type = item_dict["Type"]
-    item.quality = item_dict["Quality"]
+def get_item(item_dict) -> Item | None:
+    if not item_dict:
+        return None
+    item = Item(
+        type = item_dict["Type"],
+        quality = item_dict["Quality"]
+    )
     return item
 
-def get_ids_by_team(battle:Battle) -> Tuple[list[str],list[str]]:
+def get_average_item_power(id, battle_events) -> float:
+    average_item_power = 0.
+    for event in battle_events:
+        player_data = []
+        player_data.append(event["Killer"])
+        player_data.append(event["Victim"])
+        player_data.extend(event["Participants"])
+
+        for player in player_data:
+            if player["Id"] == id and "AverageItemPower" in player.keys() and player["AverageItemPower"] > 0.:
+                average_item_power = player["AverageItemPower"]
+    return average_item_power
+
+
+
+
+def split_ids_by_team(battle:Battle) -> Tuple[list[str],list[str]]:
     
     team_a_ids = set()
     team_b_ids = set()
 
-    all_player_ids = set(battle.players.keys())
+    all_player_ids = set(battle["players"].keys())
 
     # Seed the teams with the first event's killer.
-    if battle.events:
-        first_killer_id = battle.events[0]['Killer']['Id']
+    if battle['events']:
+        first_killer_id = battle['events'][0]['Killer']['Id']
         team_a_ids.add(first_killer_id)
 
     # Iteratively assign players to teams until the assignments are stable.
     for _ in range(len(all_player_ids) + 1): 
-        for event in battle.events:
+        for event in battle['events']:
             killer_id = event['Killer']['Id']
             victim_id = event['Victim']['Id']
             
@@ -442,6 +487,8 @@ def get_ids_by_team(battle:Battle) -> Tuple[list[str],list[str]]:
                     team_a_ids.add(killer_id)
                     team_a_ids.update(group_member_ids)
 
+    
+
     # Assigning any remaining unassigned players
     # if either team is full, add any remaining players to the other team
     if len(all_player_ids) == 10:
@@ -451,20 +498,23 @@ def get_ids_by_team(battle:Battle) -> Tuple[list[str],list[str]]:
         elif len(team_b_ids) >= 5:
             team_a_ids.update(all_player_ids - team_b_ids)
             team_b_ids = all_player_ids - team_a_ids # Recalculate to trim extras
+    battle['team_a_ids'] = list(team_a_ids)
+    battle['team_b_ids'] = list(team_b_ids)
+    
+    sort_teams_ids_by_class(battle)
 
 
-    return list(team_a_ids), list(team_b_ids)
 
-def load_covered_battles():
+def load_reported_battles():
     try:
-        with open(COVERED_BATTLES_JSON_PATH, 'r') as f:
+        with open(REPORTED_BATTLES_JSON_PATH, 'r') as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return [] 
 
-def save_covered_battles(covered_battles):
-    with open(COVERED_BATTLES_JSON_PATH, 'w') as f:
-        json.dump(covered_battles, f, indent=4)
+def save_reported_battles(reported_battles):
+    with open(REPORTED_BATTLES_JSON_PATH, 'w') as f:
+        json.dump(reported_battles, f, indent=4)
 
 async def get_50_battles(server_url, limit=BATTLES_LIMIT,page=1):
     battles = []
@@ -476,13 +526,15 @@ async def get_50_battles(server_url, limit=BATTLES_LIMIT,page=1):
     return battles
 
 def contains_battles_out_of_range(battles):
+    if not battles:
+        return False
+
     times = [datetime.fromisoformat(battle["startTime"].replace('Z', '+00:00')) for battle in battles]
     return max(times) - min(times) > timedelta(minutes=BATTLES_MAX_AGE_MINUTES)
 
 async def get_recent_battles() -> List[Battle]:
     battles_dicts = []
     battles = []
-    contains_battles_out_of_range = False
     page_number = 0
 
     while not contains_battles_out_of_range(battles_dicts):
@@ -495,30 +547,33 @@ async def get_recent_battles() -> List[Battle]:
     battles_dicts = [battle for battle in battles_dicts if len(battle["players"]) == 10]
     print(f"Found {len(battles_dicts)} battles with 10 players")
 
-    covered_battle_reports = load_covered_battles()
+    reported_battles = load_reported_battles()
 
     for battle_dict in battles_dicts:
         id = battle_dict["id"]
-        if id not in covered_battle_reports:
+        if id not in reported_battles:
+            reported_battles.append(id)
+            
             url = f"{SERVER_URL}/events/battle/{id}"
             battle_events = await get_json(url)
             
             if not battle_events:
                 continue
 
-            battle = get_battle_objects(battle_dict, battle_events)
+            battle = get_battle_object(battle_dict, battle_events)
 
             if not is_hellgate_battle(battle):
                 continue
             
             battles.append(battle)
     
+    save_reported_battles(reported_battles)
     print(f"Found {len(battles)} hellgate battles")
     return battles
 
 def sort_teams_ids_by_class(battle:Battle) -> None:
-    battle.team_a_ids = sort_team_ids_by_class(battle.team_a_ids, battle.players)
-    battle.team_b_ids = sort_team_ids_by_class(battle.team_b_ids, battle.players)
+    battle['team_a_ids'] = sort_team_ids_by_class(battle['team_a_ids'], battle["players"])
+    battle['team_b_ids'] = sort_team_ids_by_class(battle['team_b_ids'], battle["players"])
 
 def sort_team_ids_by_class(team, players) -> List[str]:
     healers = []
@@ -531,29 +586,36 @@ def sort_team_ids_by_class(team, players) -> List[str]:
     for player_id in team:
         player = players[player_id]
 
+
         if is_healer(player):
-            healers.append(player)
+            healers.append(player_id)
             continue
 
-        if not player.equipment.armor:
-            unknown.append(player)
+        if player['equipment']['armor'] is None:
+            unknown.append(player_id)
             continue
 
-        if "PLATE_ROYAL" in player.equipment.armor or "PLATE_SET1" in player.equipment.armor:
-            melees.append(player)
+        if "PLATE_ROYAL" in player['equipment']['armor']['type'] or "PLATE_SET1" in player['equipment']['armor']['type']:
+            melees.append(player_id)
+            continue
 
-        elif "PLATE" in player.equipment.armor:
-            tanks.append(player)
+        elif "PLATE" in player['equipment']['armor']['type']:
+            tanks.append(player_id)
+            continue
 
-        elif "LEATHER" in player.equipment.armor:
-            leathers.append(player)
+        elif "LEATHER" in player['equipment']['armor']['type']:
+            leathers.append(player_id)
+            continue
 
         else:
-            cloth.append(player)
+            cloth.append(player_id)
+            continue
 
     try:
-        def key(player): 
-            return player.equipment.mainHand.type
+        def key(player_id): 
+            if not players[player_id]['equipment']['mainHand']:
+                return "zzzzzzzzzzz"
+            return players[player_id]['equipment']['mainHand']['type'][2:]
 
         cloth.sort(key=key)
         unknown.sort(key=key)
@@ -564,14 +626,17 @@ def sort_team_ids_by_class(team, players) -> List[str]:
         healers.sort(key=key)
     except Exception as e:
         print(f"Error sorting players: {e}")
-    return unknown + tanks + melees + leathers + cloth + healers
+    sorted_team = unknown + tanks + melees + leathers + cloth + healers
+    return sorted_team
 
 def is_healer(player:Player) -> bool:
-    weapon = player.equipment.mainHand.type[3:].split('@')[0]
+    if not player['equipment']['mainHand']:
+        return False
+    weapon = player['equipment']['mainHand']['type'][3:].split('@')[0]
     return weapon in HEALING_WEAPONS
 
-def clear_covered_battles() -> None:
-    with open(COVERED_BATTLES_JSON_PATH, 'w') as f:
+def clear_reported_battles() -> None:
+    with open(REPORTED_BATTLES_JSON_PATH, 'w') as f:
         json.dump([], f, indent=4)
 
 def clear_equipments_images() -> None:
@@ -591,3 +656,14 @@ def clear_battle_reports_images() -> None:
                 os.unlink(file_path)
         except Exception as e:
             print('Failed to delete %s. Reason: %s' % (file_path, e))
+
+
+async def gen_battle_report_by_id(battle_id):
+    battle_dict = await get_json(f"{SERVER_URL}/battles/{battle_id}")
+    battle_events = await get_json(f"{SERVER_URL}/events/battle/{battle_id}")
+    await generate_battle_report(battle=get_battle_object(battle_dict=battle_dict, battle_events=battle_events))
+
+async def get_battle(battle_id):
+    battle_dict = await get_json(f"{SERVER_URL}/battles/{battle_id}")
+    battle_events = await get_json(f"{SERVER_URL}/events/battle/{battle_id}")
+    return get_battle_object(battle_dict=battle_dict, battle_events=battle_events)

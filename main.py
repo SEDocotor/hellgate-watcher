@@ -1,4 +1,5 @@
-from bot import bot
+from src.bot import bot
+from src.hellgate_watcher import gen_battle_report_by_id
 import dotenv
 import os
 

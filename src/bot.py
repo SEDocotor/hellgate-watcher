@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands,tasks
-from hellgate_watcher import get_recent_battle_reports,clear_battle_reports_images,clear_equipments_images,clear_covered_battles
+from src.hellgate_watcher import get_battle_reports,clear_battle_reports_images,clear_equipments_images,clear_reported_battles
 import os
 import json
 import config
@@ -55,7 +55,7 @@ async def setchannel(ctx, channel: discord.TextChannel):
 
 @tasks.loop(minutes=config.BATTLE_CHECK_INTERVAL_MINUTES)
 async def check_for_new_battles():
-    battle_reports = await get_recent_battle_reports()
+    battle_reports = await get_battle_reports()
     if not battle_reports:
         if config.VERBOSE_LOGGING:
             print("No new battle reports found.")
@@ -99,5 +99,5 @@ async def check_for_new_battles():
 async def clear_storage():
     clear_battle_reports_images()
     clear_equipments_images()
-    clear_covered_battles()
+    clear_reported_battles()
 

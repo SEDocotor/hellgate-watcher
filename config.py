@@ -12,7 +12,7 @@ SERVER_URL = BASE_URL_EUROPE
 RATE_LIMIT_DELAY_SECONDS = 0.5
 TIMEOUT = 30
 BATTLE_CHECK_INTERVAL_MINUTES = 1
-BATTLES_MAX_AGE_MINUTES = 5
+BATTLES_MAX_AGE_MINUTES = 120
 
 # --------------------------------------------------------------------------------------------------
 # FILE PATHS
@@ -21,8 +21,8 @@ IMAGE_FOLDER = "./images"
 ITEM_IMAGE_FOLDER = "./images/items"
 EQUIPMENT_IMAGE_FOLDER = "./images/equipments"
 BATTLE_REPORT_IMAGE_FOLDER = "./images/battle_reports"
-COVERED_BATTLES_JSON_PATH = "./covered_battle_reports.json"
-CHANNELS_JSON_PATH = 'channels.json'
+REPORTED_BATTLES_JSON_PATH = "./data/reported_battle_reports.json"
+CHANNELS_JSON_PATH = './data/channels.json'
 PLAYER_NAME_FONT_PATH = "arialbd.ttf"
 TIMESTAMP_FONT_PATH = "arial.ttf"
 
@@ -61,9 +61,9 @@ DEAD_PLAYER_GRAYSCALE_ENHANCEMENT = 0.2
 # EQUIPMENT AND LAYOUT
 # --------------------------------------------------------------------------------------------------
 LAYOUT = {
-    "Bag": (0, 0), "Head": (1, 0), "Cape": (2, 0),
-    "MainHand": (0, 1), "Armor": (1, 1), "OffHand": (2, 1),
-    "Potion": (0, 2), "Shoes": (1, 2), "Food": (2, 2)
+    "bag": (0, 0), "head": (1, 0), "cape": (2, 0),
+    "mainHand": (0, 1), "armor": (1, 1), "offHand": (2, 1),
+    "potion": (0, 2), "shoes": (1, 2), "food": (2, 2)
 }
 IMAGE_SIZE = 217
 EQUIPMENT_CANVAS_SIZE = (3 * IMAGE_SIZE, 3 * IMAGE_SIZE)
