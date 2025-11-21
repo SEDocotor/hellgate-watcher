@@ -9,19 +9,27 @@ from src.hellgate_watcher import (
 )
 import os
 import json
-import config
+from config import (
+    CHANNELS_JSON_PATH,
+    BOT_COMMAND_PREFIX,
+    BATTLE_CHECK_INTERVAL_MINUTES,
+    VERBOSE_LOGGING
+
+)
 
 
 def load_channels():
     try:
-        with open(config.CHANNELS_JSON_PATH, "r") as f:
+        with open(CHANNELS_JSON_PATH, "r") as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
 
 
 def save_channels(channel_map):
-    with open(config.CHANNELS_JSON_PATH, "w") as f:
+    directory = os.path.dirname(CHANNELS_JSON_PATH)
+    os.makedirs(directory, exist_ok=True)
+    with open(CHANNELS_JSON_PATH, "w") as f:
         json.dump(channel_map, f, indent=4)
 
 
@@ -29,7 +37,7 @@ def save_channels(channel_map):
 
 intents = discord.Intents.default()
 intents.message_content = True
-bot = commands.Bot(command_prefix=config.BOT_COMMAND_PREFIX, intents=intents)
+bot = commands.Bot(command_prefix=BOT_COMMAND_PREFIX, intents=intents)
 
 
 @bot.event
@@ -66,7 +74,7 @@ async def setchannel(ctx, channel: discord.TextChannel):
     await ctx.send(f"Battle reports will now be sent to {channel.mention}.")
 
 
-@tasks.loop(minutes=config.BATTLE_CHECK_INTERVAL_MINUTES)
+@tasks.loop(minutes=BATTLE_CHECK_INTERVAL_MINUTES)
 async def check_for_new_battles():
     print(f"[{get_current_time_formatted().ljust(20)}]\tChecking for new battle reports...")
     battle_reports = await get_battle_reports()
@@ -76,7 +84,7 @@ async def check_for_new_battles():
 
     channels_map = load_channels()
     if not channels_map:
-        if config.VERBOSE_LOGGING:
+        if VERBOSE_LOGGING:
             print("No channels configured for battle reports.")
         return
 

@@ -573,6 +573,8 @@ def load_reported_battles():
 
 
 def save_reported_battles(reported_battles):
+    directory = os.path.dirname(REPORTED_BATTLES_JSON_PATH)
+    os.makedirs(directory, exist_ok=True)
     with open(REPORTED_BATTLES_JSON_PATH, "w") as f:
         json.dump(reported_battles, f, indent=4)
 
