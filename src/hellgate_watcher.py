@@ -130,7 +130,7 @@ def is_ip_capped(battle: Battle) -> bool:
         max_ip = get_max_ip_player(player)
         if player["averageItemPower"] > max_ip + 75:
             print(
-                f"Player {player['name']} has {int(player['averageItemPower'])} IP, however the maximum possible IP is {max_ip}. Battle id {battle['id']}"
+                f"[{get_current_time_formatted().ljust(20)}]\tPlayer {player['name']} has {int(player['averageItemPower'])} IP, however the maximum possible IP is {max_ip}. Battle id {battle['id']}"
             )
             return False
     return True
@@ -230,7 +230,7 @@ async def generate_equipment_image(equipment: Equipment) -> str:
     equipment_image_path = f"{EQUIPMENT_IMAGE_FOLDER}/{image_name}.png"
 
     if VERBOSE_LOGGING:
-        print(f"generating {equipment_image_path}")
+        print(f"[{get_current_time_formatted().ljust(20)}]\tgenerating {equipment_image_path}")
 
     equipment_image.save(equipment_image_path)
 
@@ -266,7 +266,7 @@ async def get_image(url: str) -> bytes | None:
                 return await response.read()
 
         except Exception as e:
-            print(f"An error occurred while fetching {url}: {e}")
+            print(f"[{get_current_time_formatted().ljust(20)}]\tAn error occurred while fetching {url}: {e}")
             return None
 
 
@@ -280,7 +280,7 @@ async def get_json(url: str) -> Dict | None:
                 return await response.json()
 
         except Exception as e:
-            print(f"An error occurred while fetching {url}: {e}")
+            print(f"[{get_current_time_formatted().ljust(20)}]\tAn error occurred while fetching {url}: {e}")
             return None
 
 
@@ -298,7 +298,7 @@ async def generate_battle_report(battle: Battle) -> str:
         )  # Increased font size for timestamp
         ip_font = ImageFont.truetype(TIMESTAMP_FONT_PATH, 35)
     except IOError:
-        print("Font not found. Using default font.")
+        print(f"[{get_current_time_formatted().ljust(20)}]\tFont not found. Using default font.")
         player_name_font = ImageFont.load_default()
         timestamp_font = ImageFont.load_default()
         ip_font = ImageFont.load_default()
@@ -411,7 +411,7 @@ async def generate_battle_report(battle: Battle) -> str:
         f"{BATTLE_REPORT_IMAGE_FOLDER}/battle_report_{battle['id']}.png"
     )
 
-    print(f"generating {battle_report_image_path}")
+    print(f"[{get_current_time_formatted().ljust(20)}]\tgenerating {battle_report_image_path}")
     battle_report_image.save(battle_report_image_path)
     return battle_report_image_path
 
@@ -610,10 +610,10 @@ async def get_recent_battles() -> List[Battle]:
         page_number += 1
         await asyncio.sleep(RATE_LIMIT_DELAY_SECONDS)
 
-    print(f"Parsed {len(battles_dicts)} Battles")
+    print(f"[{get_current_time_formatted().ljust(20)}]\tParsed {len(battles_dicts)} Battles")
 
     battles_dicts = [battle for battle in battles_dicts if len(battle["players"]) == 10]
-    print(f"Found {len(battles_dicts)} battles with 10 players")
+    print(f"[{get_current_time_formatted().ljust(20)}]\tFound {len(battles_dicts)} battles with 10 players")
 
     reported_battles = load_reported_battles()
 
@@ -636,7 +636,7 @@ async def get_recent_battles() -> List[Battle]:
             battles.append(battle)
 
     save_reported_battles(reported_battles)
-    print(f"Found {len(battles)} hellgate battles")
+    print(f"[{get_current_time_formatted().ljust(20)}]\tFound {len(battles)} hellgate battles")
     return battles
 
 
@@ -702,7 +702,7 @@ def sort_team_ids_by_class(team, players) -> List[str]:
         cloth.sort(key=key)
         healers.sort(key=key)
     except Exception as e:
-        print(f"Error sorting players: {e}")
+        print(f"[{get_current_time_formatted().ljust(20)}]\tError sorting players: {e}")
     sorted_team = unknown + tanks + melees + leathers + cloth + healers
     return sorted_team
 
@@ -730,7 +730,7 @@ def clear_equipments_images() -> None:
             ):
                 os.unlink(file_path)
         except Exception as e:
-            print("Failed to delete %s. Reason: %s" % (file_path, e))
+            print("f[{get_current_time_formatted().ljust(20)}]\tFailed to delete %s. Reason: %s" % (file_path, e))
 
 
 def clear_battle_reports_images() -> None:
@@ -744,7 +744,7 @@ def clear_battle_reports_images() -> None:
             ):
                 os.unlink(file_path)
         except Exception as e:
-            print("Failed to delete %s. Reason: %s" % (file_path, e))
+            print(f"[{get_current_time_formatted().ljust(20)}]\tFailed to delete %s. Reason: %s" % (file_path, e))
 
 
 async def gen_battle_report_by_id(battle_id):
@@ -759,3 +759,6 @@ async def get_battle(battle_id):
     battle_dict = await get_json(f"{SERVER_URL}/battles/{battle_id}")
     battle_events = await get_json(f"{SERVER_URL}/events/battle/{battle_id}")
     return get_battle_object(battle_dict=battle_dict, battle_events=battle_events)
+
+def get_current_time_formatted() -> str:
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")

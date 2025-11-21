@@ -5,6 +5,7 @@ from src.hellgate_watcher import (
     clear_battle_reports_images,
     clear_equipments_images,
     clear_reported_battles,
+    get_current_time_formatted
 )
 import os
 import json
@@ -33,10 +34,10 @@ bot = commands.Bot(command_prefix=config.BOT_COMMAND_PREFIX, intents=intents)
 
 @bot.event
 async def on_ready():
-    print(f"Logged in as {bot.user} (ID: {bot.user.id})")
+    print(f"[{get_current_time_formatted().ljust(20)}]\tLogged in as {bot.user} (ID: {bot.user.id})")
     if not check_for_new_battles.is_running():
         check_for_new_battles.start()
-    print("Battle report watcher started.")
+    print(f"[{get_current_time_formatted().ljust(20)}]\tBattle report watcher started.")
 
 
 # COMMANDS
@@ -67,10 +68,10 @@ async def setchannel(ctx, channel: discord.TextChannel):
 
 @tasks.loop(minutes=config.BATTLE_CHECK_INTERVAL_MINUTES)
 async def check_for_new_battles():
+    print(f"[{get_current_time_formatted().ljust(20)}]\tChecking for new battle reports...")
     battle_reports = await get_battle_reports()
     if not battle_reports:
-        if config.VERBOSE_LOGGING:
-            print("No new battle reports found.")
+        print(f"[{get_current_time_formatted().ljust(20)}]\tNo new battle reports found.")
         return
 
     channels_map = load_channels()
@@ -80,18 +81,18 @@ async def check_for_new_battles():
         return
 
     print(
-        f"Found {len(battle_reports)} new battle reports. Checking {len(channels_map)} channels."
+        f"[{get_current_time_formatted().ljust(20)}] \tFound \t{len(battle_reports)} new battle reports. Checking {len(channels_map)} \tchannels."
     )
 
     for channel_id in channels_map.values():
         try:
             channel = await bot.fetch_channel(channel_id)
-            print(f"Found channel '{channel.name}' ({channel_id})")
+            print(f"[{get_current_time_formatted().ljust(20)}]\tFound channel '{channel.name}' ({channel_id})")
         except discord.NotFound:
-            print(f"Channel {channel_id} not found. Skipping.")
+            print(f"[{get_current_time_formatted().ljust(20)}]\tChannel {channel_id} not found. Skipping.")
             continue
         except discord.Forbidden:
-            print(f"No permission to fetch channel {channel_id}. Skipping.")
+            print(f"[{get_current_time_formatted().ljust(20)}]\tNo permission to fetch channel {channel_id}. Skipping.")
             continue
 
         if channel.permissions_for(channel.guild.me).send_messages:
@@ -102,20 +103,21 @@ async def check_for_new_battles():
                         battle_report = discord.File(f, filename=file_name)
                         await channel.send(file=battle_report)
                         print(
-                            f"Sent battle report ({file_name}) to channel {channel.name} ({channel_id})"
+                            f"[{get_current_time_formatted().ljust(20)}]\tSent battle report ({file_name}) to channel {channel.name} ({channel_id})"
                         )
                 except FileNotFoundError:
                     print(
-                        f"Error: Battle report file not found at {battle_report_path}"
+                        f"[{get_current_time_formatted().ljust(20)}]\tError: Battle report file not found at {battle_report_path}"
                     )
                 except discord.HTTPException as e:
                     print(
-                        f"Error sending message to channel {channel.name} ({channel_id}): {e}"
+                        f"[{get_current_time_formatted().ljust(20)}]\tError sending message to channel {channel.name} ({channel_id}): {e}"
                     )
         else:
             print(
-                f"No permission to send messages in channel {channel.name} ({channel_id}). Skipping."
+                f"[{get_current_time_formatted().ljust(20)}]\tNo permission to send messages in channel {channel.name} ({channel_id}). Skipping."
             )
+    print(f"[{get_current_time_formatted().ljust(20)}]\tFinished checking for new battle reports.")
 
 
 @tasks.loop(hours=24)
