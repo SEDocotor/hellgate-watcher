@@ -9,10 +9,9 @@ from config import (
     BATTLES_LIMIT,
     BATTLES_MAX_AGE_MINUTES,
     OVERCHARGE_BONUS_IP,
-    LETHAL_5v5_IP_CAP,
-    LETHAL_5v5_SOFTCAP_PERCENT,
+    LETHAL_5V5_IP_CAP,
+    LETHAL_5V5_SOFTCAP_PERCENT,
     QUALITY_IP,
-    SERVER_URL,
     RENDER_API_URL,
     IMAGE_FOLDER,
     EQUIPMENT_IMAGE_FOLDER,
@@ -33,12 +32,12 @@ from config import (
     IP_AREA_HEIGHT,
     LINE_SPACING,
     SPACING,
-    CANVAS_WIDTH,
+    CANVAS_WIDTH_5V5,
     SIDE_PADDING,
     BACKGROUND_COLOR,
     DEAD_PLAYER_GRAYSCALE_ENHANCEMENT,
     LAYOUT,
-    BATTLE_REPORT_CANVAS_SIZE,
+    BATTLE_REPORT_CANVAS_SIZE_5V5,
     HEALING_WEAPONS,
     VERBOSE_LOGGING,
     IMAGE_SIZE,
@@ -183,10 +182,10 @@ def get_max_ip_item(item: Item, is_cape=False) -> float:
 
 
 def apply_5v5_ip_soft_cap(ip: float) -> float:
-    if ip <= LETHAL_5v5_IP_CAP:
+    if ip <= LETHAL_5V5_IP_CAP:
         return ip
-    return LETHAL_5v5_IP_CAP + (ip - LETHAL_5v5_IP_CAP) * (
-        LETHAL_5v5_SOFTCAP_PERCENT / 100
+    return LETHAL_5V5_IP_CAP + (ip - LETHAL_5V5_IP_CAP) * (
+        LETHAL_5V5_SOFTCAP_PERCENT / 100
     )
 
 
@@ -295,7 +294,7 @@ async def get_json(url: str) -> Dict | None:
 
 
 async def generate_battle_report(battle: Battle) -> str:
-    battle_report_image = Image.new("RGB", BATTLE_REPORT_CANVAS_SIZE, BACKGROUND_COLOR)
+    battle_report_image = Image.new("RGB", BATTLE_REPORT_CANVAS_SIZE_5V5, BACKGROUND_COLOR)
 
     draw = ImageDraw.Draw(battle_report_image)
 
@@ -404,7 +403,7 @@ async def generate_battle_report(battle: Battle) -> str:
     duration_text_y = start_text_y + text_height + LINE_SPACING
 
     draw.text(
-        ((CANVAS_WIDTH - start_text_width) / 2, start_text_y),
+        ((CANVAS_WIDTH_5V5 - start_text_width) / 2, start_text_y),
         start_time_text,
         font=timestamp_font,
         fill=(255, 255, 255),
@@ -413,7 +412,7 @@ async def generate_battle_report(battle: Battle) -> str:
     duration_bbox = draw.textbbox((0, 0), duration_text, font=timestamp_font)
     duration_text_width = duration_bbox[2] - duration_bbox[0]
     draw.text(
-        ((CANVAS_WIDTH - duration_text_width) / 2, duration_text_y),
+        ((CANVAS_WIDTH_5V5 - duration_text_width) / 2, duration_text_y),
         duration_text,
         font=timestamp_font,
         fill=(255, 255, 255),

@@ -2,8 +2,14 @@
 # API and URLs
 # --------------------------------------------------------------------------------------------------
 BASE_URL_EUROPE = "https://gameinfo-ams.albiononline.com/api/gameinfo"
+BASE_URL_AMERICAS = "https://gameinfo.albiononline.com/api/gameinfo"
+BASE_URL_ASIA = "https://gameinfo-sgp.albiononline.com/api/gameinfo"
 RENDER_API_URL = "https://render.albiononline.com/v1/item/"
-SERVER_URL = BASE_URL_EUROPE
+SERVER_URLS = {
+    "europe": BASE_URL_EUROPE,
+    "americas": BASE_URL_AMERICAS,
+    "asia": BASE_URL_ASIA,
+}
 
 # --------------------------------------------------------------------------------------------------
 # TIMING AND RATE LIMITS
@@ -11,7 +17,7 @@ SERVER_URL = BASE_URL_EUROPE
 RATE_LIMIT_DELAY_SECONDS = 0.5
 TIMEOUT = 30
 BATTLE_CHECK_INTERVAL_MINUTES = 1
-BATTLES_MAX_AGE_MINUTES = 5
+BATTLES_MAX_AGE_MINUTES = 60
 
 # --------------------------------------------------------------------------------------------------
 # FILE PATHS
@@ -20,8 +26,10 @@ IMAGE_FOLDER = "./images"
 ITEM_IMAGE_FOLDER = "./images/items"
 EQUIPMENT_IMAGE_FOLDER = "./images/equipments"
 BATTLE_REPORT_IMAGE_FOLDER = "./images/battle_reports"
-REPORTED_BATTLES_JSON_PATH = "./data/reported_battle_reports.json"
-CHANNELS_JSON_PATH = "./data/channels.json"
+
+REPORTED_BATTLES_JSON_PATH = "./data/reported_battles_new.json"
+CHANNELS_JSON_PATH = "./data/channels_new.json"
+
 PLAYER_NAME_FONT_PATH = "arialbd.ttf"
 TIMESTAMP_FONT_PATH = "arial.ttf"
 
@@ -46,13 +54,15 @@ SPACING = 30
 MIDDLE_GAP = 200
 PLAYER_NAME_AREA_HEIGHT = 60
 IP_AREA_HEIGHT = 50
-CANVAS_WIDTH = (2 * SIDE_PADDING) + (5 * EQUIPMENT_IMAGE_SIZE) + ((5 - 1) * SPACING)
+CANVAS_WIDTH_5V5 = (2 * SIDE_PADDING) + (5 * EQUIPMENT_IMAGE_SIZE) + ((5 - 1) * SPACING)
+CANVAS_WIDTH_2V2 = (2 * SIDE_PADDING) + (2 * EQUIPMENT_IMAGE_SIZE) + ((2 - 1) * SPACING)
 CANVAS_HEIGHT = (
     (2 * TOP_BOTTOM_PADDING)
     + (2 * (EQUIPMENT_IMAGE_SIZE + PLAYER_NAME_AREA_HEIGHT + IP_AREA_HEIGHT))
     + MIDDLE_GAP
 )
-BATTLE_REPORT_CANVAS_SIZE = (CANVAS_WIDTH, CANVAS_HEIGHT)
+BATTLE_REPORT_CANVAS_SIZE_5V5 = (CANVAS_WIDTH_5V5, CANVAS_HEIGHT)
+BATTLE_REPORT_CANVAS_SIZE_2V2 = (CANVAS_WIDTH_2V2, CANVAS_HEIGHT)
 BACKGROUND_COLOR = (40, 40, 40, 255)
 PLAYER_NAME_FONT_SIZE = 40
 TIMESTAMP_FONT_SIZE = 60
@@ -67,9 +77,9 @@ LAYOUT = {
     "bag": (0, 0),
     "head": (1, 0),
     "cape": (2, 0),
-    "mainHand": (0, 1),
+    "mainhand": (0, 1),
     "armor": (1, 1),
-    "offHand": (2, 1),
+    "offhand": (2, 1),
     "potion": (0, 2),
     "shoes": (1, 2),
     "food": (2, 2),
@@ -110,6 +120,9 @@ QUALITY_IP = {
     "4": 60,
     "5": 100,
 }
-LETHAL_5v5_SOFTCAP_PERCENT = 35
-LETHAL_5v5_IP_CAP = 1100
+LETHAL_5V5_SOFTCAP_PERCENT = 35
+LETHAL_5V5_IP_CAP = 1100
+LETHAL_2V2_SOFTCAP_PERCENT = 35
+LETHAL_2V2_IP_CAP = 1100
 OVERCHARGE_BONUS_IP = 100
+BASE_IP = 300
