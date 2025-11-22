@@ -119,10 +119,14 @@ def is_ten_player_battle(battle: Battle) -> bool:
 
 
 def is_five_vs_five_battle(battle: Battle) -> bool:
+    has_team_size_five = False
     for event in battle["events"]:
         if event["groupMemberCount"] > 5:
             return False
-    return True
+        if event["groupMemberCount"] == 5:
+            has_team_size_five = True
+
+    return has_team_size_five
 
 
 def is_ip_capped(battle: Battle) -> bool:
