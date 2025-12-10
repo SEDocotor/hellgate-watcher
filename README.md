@@ -2,6 +2,11 @@
 
 A Discord bot that monitors and reports recent 2v2 and 5v5 Hellgate battles from Albion Online servers.
 
+# Upgrades
+
+- **Replaced JSON storage with a real database**, allowing for a huge increase in throughput.
+- **Switched backend to GO to utilize goroutines allowing for a significant performance increase
+
 ## Features
 
 - **Automatic Battle Reporting:** Periodically fetches new Hellgate battles on the specified Albion Online servers (Europe, Americas, and Asia).
@@ -30,5 +35,5 @@ This command requires administrator permissions.
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/your-username/hellgate-watcher.git
+git clone https://github.com/SEDocotor/hellgate-watcher.git
 cd hellgate-watcher
