@@ -3,7 +3,6 @@ package watcher
 import "time"
 
 // These types model the parsed battle objects that the Node bot will consume.
-// The structures mirror the Python classes' important fields.
 
 type Item struct {
 	Type        string `json:"type"`
