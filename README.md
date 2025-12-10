@@ -5,7 +5,7 @@ A Discord bot that monitors and reports recent 2v2 and 5v5 Hellgate battles from
 # Upgrades
 
 - **Replaced JSON storage with a real database**, allowing for a huge increase in throughput.
-- **Switched backend to GO to utilize goroutines allowing for a significant performance increase
+- **Switched backend to GO to utilize goroutines**, allowing for a significant performance increase
 
 ## Features
 
