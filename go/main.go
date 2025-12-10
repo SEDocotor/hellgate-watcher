@@ -24,17 +24,14 @@ func main() {
 		if dialect == "sqlite" {
 			dsn = filepath.Join(dataDir, "hellgate.db")
 		} else {
-			// sensible Postgres default for local development
+			//default 
 			dsn = "host=localhost user=postgres password=postgres dbname=hellgate sslmode=disable"
 		}
 	}
 
-	// Initialize DB (simple InitDB taking only a DSN)
 	db.InitDB(dsn)
 
-	// Start background poller to discover new battles periodically
 	go func() {
-		// use watcher package default interval
 		watcher.StartBackgroundPoller(db.WithDB(), watcher.BattleCheckIntervalMins)
 	}()
 
