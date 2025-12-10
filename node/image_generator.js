@@ -12,7 +12,6 @@ async function getItemImageUrl(item) {
   const type = item.Type || item.type || '';
   const enchant = item.Enchantment || item.enchantment || 0;
   const quality = item.Quality || item.quality || 0;
-  // Render API path example used in Python
   const url = `https://render.albiononline.com/v1/item/T${tier}_${type}@${enchant}.png?count=1&quality=${enchant}`;
   return url;
 }
@@ -29,7 +28,6 @@ async function downloadImage(url) {
 }
 
 async function generateBattleReportImage(battle) {
-  // minimal layout: horizontally list team A and team B equipment placeholder images and names
   const width = 1200;
   const height = 600;
   const canvas = createCanvas(width, height);
@@ -54,7 +52,6 @@ async function generateBattleReportImage(battle) {
     ctx.fillStyle = '#ffffff';
     ctx.font = '20px Sans';
     ctx.fillText(p.Name || p.name || 'Unknown', x, y);
-    // attempt to load mainhand image
     const mainhand = p.Equipment && (p.Equipment.MainHand || p.Equipment.mainhand);
     const url = await getItemImageUrl(mainhand);
     if (url) {
@@ -65,7 +62,6 @@ async function generateBattleReportImage(battle) {
           ctx.drawImage(img, x, y + 10, 80, 80);
         }
       } catch (e) {
-        // ignore
       }
     }
   };
