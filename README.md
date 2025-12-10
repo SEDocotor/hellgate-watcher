@@ -31,7 +31,7 @@ This command requires administrator permissions.
 
 - Node.js 20+
 - Go 1.21+
-
+- Postgres Database for storage, either local or remote
 ### 1. Clone the repository
 
 ```bash
