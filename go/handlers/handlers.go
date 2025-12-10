@@ -11,7 +11,6 @@ import (
 	"github.com/SEDocotor/hellgate-watcher-go/watcher"
 )
 
-// ChannelsHandler returns an http.HandlerFunc that handles GET/POST for channels
 func ChannelsHandler(db *gorm.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -31,7 +30,6 @@ func ChannelsHandler(db *gorm.DB) http.HandlerFunc {
 				w.Write([]byte(err.Error()))
 				return
 			}
-			// Upsert by unique index
 			if err := db.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "server"}, {Name: "mode"}, {Name: "guild_id"}}, DoUpdates: clause.AssignmentColumns([]string{"channel_id"})}).Create(&c).Error; err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				w.Write([]byte(err.Error()))
@@ -45,7 +43,6 @@ func ChannelsHandler(db *gorm.DB) http.HandlerFunc {
 	}
 }
 
-// ReportedBattlesHandler handles GET/POST for reported battles
 func ReportedBattlesHandler(db *gorm.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -63,13 +60,11 @@ func ReportedBattlesHandler(db *gorm.DB) http.HandlerFunc {
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(out)
 		case http.MethodDelete:
-			// Optional ?server= query to clear a single server, otherwise clear all
 			server := r.URL.Query().Get("server")
 			var err error
 			if server != "" {
 				err = db.Where("server = ?", server).Delete(&models.ReportedBattle{}).Error
 			} else {
-				// allow global delete
 				err = db.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&models.ReportedBattle{}).Error
 			}
 			if err != nil {
@@ -103,7 +98,6 @@ func ReportedBattlesHandler(db *gorm.DB) http.HandlerFunc {
 	}
 }
 
-// RecentBattlesHandler returns parsed recent battles by polling the Albion APIs (uses watcher package)
 func RecentBattlesHandler(gdb *gorm.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
