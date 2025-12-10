@@ -2,7 +2,6 @@ package models
 
 import "time"
 
-// Channel represents a mapping of server/mode/guild -> discord channel
 type Channel struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`
 	Server    string    `gorm:"uniqueIndex:idx_channel,priority:1" json:"server"`
@@ -13,7 +12,6 @@ type Channel struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// ReportedBattle stores which battles have already been reported per server
 type ReportedBattle struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`
 	Server    string    `gorm:"index:idx_reported,priority:1" json:"server"`
